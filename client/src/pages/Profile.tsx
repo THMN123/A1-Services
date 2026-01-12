@@ -2,7 +2,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useProfile } from "@/hooks/use-profiles";
 import { BottomNav } from "@/components/BottomNav";
 import { Button } from "@/components/ui/button";
-import { LogOut, User, Wallet, Settings, Bell, ChevronRight, Store, MapPin } from "lucide-react";
+import { LogOut, User, Wallet, Settings, Bell, ChevronRight, Store, MapPin, ShieldCheck } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -188,7 +188,10 @@ export default function Profile() {
             <ProfileItem icon={User} label="Personal Info" onClick={() => setIsEditing(true)} testId="item-personal-info" />
             <ProfileItem icon={MapPin} label="Saved Addresses" onClick={() => navigate('/addresses')} testId="item-addresses" />
             <ProfileItem icon={Bell} label="Notifications" onClick={() => navigate('/notifications')} testId="item-notifications" />
-            <ProfileItem icon={Store} label="Vendor Dashboard" onClick={() => navigate('/vendor-dashboard')} testId="item-vendor-dashboard" />
+            <ProfileItem icon={Store} label="Vendor Dashboard" onClick={() => navigate('/vendor-admin')} testId="item-vendor-dashboard" />
+            {profile?.role === 'admin' && (
+              <ProfileItem icon={ShieldCheck} label="Super Admin" onClick={() => navigate('/super-admin')} testId="item-super-admin" />
+            )}
             <ProfileItem icon={Settings} label="Settings" onClick={() => navigate('/settings')} testId="item-settings" />
           </>
         )}

@@ -18,6 +18,9 @@ import Settings from "@/pages/Settings";
 import Notifications from "@/pages/Notifications";
 import Addresses from "@/pages/Addresses";
 import VendorDashboard from "@/pages/VendorDashboard";
+import VendorAdmin from "@/pages/VendorAdmin";
+import BecomeVendor from "@/pages/BecomeVendor";
+import SuperAdmin from "@/pages/SuperAdmin";
 import NotFound from "@/pages/not-found";
 
 function ProtectedRoute({ component: Component, ...rest }: any) {
@@ -82,6 +85,18 @@ function Router() {
 
       <Route path="/vendor-dashboard">
         {() => <ProtectedRoute component={VendorDashboard} />}
+      </Route>
+
+      <Route path="/vendor-admin">
+        {() => <ProtectedRoute component={VendorAdmin} />}
+      </Route>
+
+      <Route path="/become-vendor">
+        {() => <ProtectedRoute component={BecomeVendor} />}
+      </Route>
+
+      <Route path="/super-admin">
+        {() => <ProtectedRoute component={SuperAdmin} />}
       </Route>
 
       <Route path="/login" component={Login} />
