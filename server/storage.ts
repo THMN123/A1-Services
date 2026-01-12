@@ -1,6 +1,6 @@
 import { 
-  users, profiles, vendors, products, orders, orderItems, pushSubscriptions, rewards, redemptions,
-  type User, type Profile, type Vendor, type Product, type Order, type OrderItem, type PushSubscription, type Reward, type Redemption,
+  users, profiles, vendors, products, orders, orderItems, pushSubscriptions, rewards, redemptions, vendorCategories,
+  type User, type Profile, type Vendor, type Product, type Order, type OrderItem, type PushSubscription, type Reward, type Redemption, type VendorCategory,
   type CreateVendorRequest, type CreateProductRequest, type CreateOrderRequest, type UpdateOrderStatusRequest, type CreatePushSubscriptionRequest
 } from "@shared/schema";
 import { db } from "./db";
@@ -17,6 +17,9 @@ export interface IStorage {
   getReward(id: number): Promise<Reward | undefined>;
   createRedemption(redemption: any): Promise<Redemption>;
   getUserRedemptions(userId: string): Promise<(Redemption & { reward: Reward })[]>;
+
+  // Categories
+  getCategories(): Promise<VendorCategory[]>;
 
   // Vendors
   getVendors(): Promise<Vendor[]>;
@@ -87,6 +90,11 @@ export class DatabaseStorage implements IStorage {
       ...r.redemptions,
       reward: r.rewards
     }));
+  }
+
+  // Categories
+  async getCategories(): Promise<VendorCategory[]> {
+    return await db.select().from(vendorCategories).orderBy(vendorCategories.sortOrder);
   }
 
   // Vendors

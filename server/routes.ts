@@ -5,7 +5,7 @@ import { api } from "@shared/routes";
 import { z } from "zod";
 import { setupAuth, registerAuthRoutes } from "./replit_integrations/auth";
 import { db } from "./db";
-import { rewards } from "@shared/schema";
+import { rewards, vendorCategories } from "@shared/schema";
 import { eq } from "drizzle-orm";
 
 // Seed function
@@ -19,6 +19,19 @@ async function seedDatabase() {
       { name: "Free Coffee", description: "Redeem for any small coffee", pointsRequired: 500, category: "Drink", isActive: true },
       { name: "10% Discount", description: "Get 10% off your next meal", pointsRequired: 1000, category: "Food", isActive: true },
       { name: "Free Burger", description: "Redeem for a classic burger", pointsRequired: 2000, category: "Food", isActive: true }
+    ]);
+  }
+
+  const existingCategories = await db.select().from(vendorCategories);
+  if (existingCategories.length === 0) {
+    console.log("Seeding vendor categories...");
+    await db.insert(vendorCategories).values([
+      { name: "Food", icon: "🍔", color: "orange", sortOrder: 1 },
+      { name: "Coffee", icon: "☕", color: "brown", sortOrder: 2 },
+      { name: "Groceries", icon: "🥦", color: "green", sortOrder: 3 },
+      { name: "Services", icon: "🔧", color: "blue", sortOrder: 4 },
+      { name: "Print", icon: "🖨️", color: "gray", sortOrder: 5 },
+      { name: "Fashion", icon: "👕", color: "purple", sortOrder: 6 },
     ]);
   }
 
@@ -41,8 +54,12 @@ export async function registerRoutes(
   app.get(api.profiles.me.path, async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Unauthorized" });
     const user = req.user as any;
-    const profile = await storage.getProfile(user.claims.sub);
-    if (!profile) return res.status(404).json({ message: "Profile not found" });
+    let profile = await storage.getProfile(user.claims.sub);
+    
+    // Auto-create profile if it doesn't exist
+    if (!profile) {
+      profile = await storage.createProfile({ userId: user.claims.sub });
+    }
     res.json(profile);
   });
 
@@ -110,6 +127,12 @@ export async function registerRoutes(
     const user = req.user as any;
     const history = await storage.getUserRedemptions(user.claims.sub);
     res.json(history);
+  });
+
+  // -- Categories --
+  app.get(api.categories.list.path, async (req, res) => {
+    const categories = await storage.getCategories();
+    res.json(categories);
   });
 
   // -- Vendors --
@@ -257,6 +280,18 @@ export async function registerRoutes(
     if (!vendor || vendor.ownerId !== user.claims.sub) return res.status(403).json({ message: "Forbidden" });
 
     const updated = await storage.updateOrderStatus(orderId, req.body.status);
+    
+    // Award loyalty points when order is completed (1 point per $1 spent)
+    if (req.body.status === "completed" && order.status !== "completed") {
+      const pointsEarned = Math.floor(Number(order.totalAmount));
+      const profile = await storage.getProfile(order.customerId);
+      if (profile) {
+        await storage.updateProfile(order.customerId, {
+          loyaltyPoints: profile.loyaltyPoints + pointsEarned
+        });
+      }
+    }
+    
     res.json(updated);
   });
 

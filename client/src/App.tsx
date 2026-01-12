@@ -10,7 +10,7 @@ import Home from "@/pages/Home";
 import Login from "@/pages/Login";
 import VendorDetails from "@/pages/VendorDetails";
 import Orders from "@/pages/Orders";
-import Explore from "@/pages/Explore";
+import Shops from "@/pages/Shops";
 import Rewards from "@/pages/Rewards";
 import Profile from "@/pages/Profile";
 import NotFound from "@/pages/not-found";
@@ -51,8 +51,8 @@ function Router() {
         {() => <ProtectedRoute component={Orders} />}
       </Route>
 
-      <Route path="/explore">
-        {() => <ProtectedRoute component={Explore} />}
+      <Route path="/shops">
+        {() => <ProtectedRoute component={Shops} />}
       </Route>
 
       <Route path="/rewards">

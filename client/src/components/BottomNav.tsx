@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Home, Search, ShoppingBag, Award, User } from "lucide-react";
+import { Home, Store, ShoppingBag, Award, User } from "lucide-react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
@@ -8,7 +8,7 @@ export function BottomNav() {
 
   const tabs = [
     { name: "Home", href: "/", icon: Home },
-    { name: "Explore", href: "/explore", icon: Search },
+    { name: "Shops", href: "/shops", icon: Store },
     { name: "Orders", href: "/orders", icon: ShoppingBag },
     { name: "Rewards", href: "/rewards", icon: Award },
     { name: "Profile", href: "/profile", icon: User },

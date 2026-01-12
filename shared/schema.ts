@@ -40,14 +40,27 @@ export const redemptions = pgTable("redemptions", {
   redeemedAt: timestamp("redeemed_at").defaultNow().notNull(),
 });
 
+export const vendorCategories = pgTable("vendor_categories", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull().unique(),
+  icon: text("icon").notNull(),
+  color: text("color").notNull(),
+  sortOrder: integer("sort_order").default(0).notNull(),
+});
+
 export const vendors = pgTable("vendors", {
   id: serial("id").primaryKey(),
-  ownerId: varchar("owner_id").notNull().references(() => users.id), // Link to auth user
+  ownerId: varchar("owner_id").notNull().references(() => users.id),
+  categoryId: integer("category_id").references(() => vendorCategories.id),
   name: text("name").notNull(),
   description: text("description"),
   location: text("location").notNull(),
   imageUrl: text("image_url"),
+  coverImageUrl: text("cover_image_url"),
+  rating: decimal("rating", { precision: 2, scale: 1 }).default("4.5"),
+  deliveryTime: text("delivery_time").default("15-25 min"),
   isOpen: boolean("is_open").default(false).notNull(),
+  isFeatured: boolean("is_featured").default(false).notNull(),
   commissionRate: decimal("commission_rate", { precision: 5, scale: 2 }).default("5.00").notNull(),
 });
 
@@ -143,6 +156,7 @@ export const orderItemsRelations = relations(orderItems, ({ one }) => ({
 export const insertProfileSchema = createInsertSchema(profiles).omit({ id: true });
 export const insertRewardSchema = createInsertSchema(rewards).omit({ id: true });
 export const insertRedemptionSchema = createInsertSchema(redemptions).omit({ id: true, redeemedAt: true });
+export const insertVendorCategorySchema = createInsertSchema(vendorCategories).omit({ id: true });
 export const insertVendorSchema = createInsertSchema(vendors).omit({ id: true });
 export const insertProductSchema = createInsertSchema(products).omit({ id: true });
 export const insertOrderSchema = createInsertSchema(orders).omit({ id: true, createdAt: true });
@@ -154,6 +168,7 @@ export const insertPushSubscriptionSchema = createInsertSchema(pushSubscriptions
 export type Profile = typeof profiles.$inferSelect;
 export type Reward = typeof rewards.$inferSelect;
 export type Redemption = typeof redemptions.$inferSelect;
+export type VendorCategory = typeof vendorCategories.$inferSelect;
 export type Vendor = typeof vendors.$inferSelect;
 export type Product = typeof products.$inferSelect;
 export type Order = typeof orders.$inferSelect;

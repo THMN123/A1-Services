@@ -85,6 +85,17 @@ export const api = {
     }
   },
 
+  // Categories
+  categories: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/categories',
+      responses: {
+        200: z.array(z.any()),
+      },
+    },
+  },
+
   // Vendors
   vendors: {
     list: {
