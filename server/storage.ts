@@ -1,6 +1,6 @@
 import { 
-  users, profiles, vendors, products, orders, orderItems, pushSubscriptions,
-  type User, type Profile, type Vendor, type Product, type Order, type OrderItem, type PushSubscription,
+  users, profiles, vendors, products, orders, orderItems, pushSubscriptions, rewards, redemptions,
+  type User, type Profile, type Vendor, type Product, type Order, type OrderItem, type PushSubscription, type Reward, type Redemption,
   type CreateVendorRequest, type CreateProductRequest, type CreateOrderRequest, type UpdateOrderStatusRequest, type CreatePushSubscriptionRequest
 } from "@shared/schema";
 import { db } from "./db";
