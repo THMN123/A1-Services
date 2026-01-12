@@ -18,6 +18,10 @@ export const profiles = pgTable("profiles", {
   address: text("address"),
   bio: text("bio"),
   profileImageUrl: text("profile_image_url"),
+  displayName: text("display_name"),
+  dateOfBirth: text("date_of_birth"),
+  isVerified: boolean("is_verified").default(false).notNull(),
+  totalOrders: integer("total_orders").default(0).notNull(),
   walletBalance: decimal("wallet_balance", { precision: 10, scale: 2 }).default("0").notNull(),
   loyaltyPoints: integer("loyalty_points").default(0).notNull(),
 });

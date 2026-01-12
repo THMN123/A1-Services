@@ -56,6 +56,8 @@ export const api = {
         address: z.string().optional(),
         bio: z.string().optional(),
         profileImageUrl: z.string().optional(),
+        displayName: z.string().optional(),
+        dateOfBirth: z.string().optional(),
       }),
       responses: {
         200: z.custom<typeof profiles.$inferSelect>(),

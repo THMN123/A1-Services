@@ -285,13 +285,14 @@ export async function registerRoutes(
 
     const updated = await storage.updateOrderStatus(orderId, req.body.status);
     
-    // Award loyalty points when order is completed (1 point per $1 spent)
+    // Award loyalty points and increment order count when order is completed (1 point per $1 spent)
     if (req.body.status === "completed" && order.status !== "completed") {
       const pointsEarned = Math.floor(Number(order.totalAmount));
       const profile = await storage.getProfile(order.customerId);
       if (profile) {
         await storage.updateProfile(order.customerId, {
-          loyaltyPoints: profile.loyaltyPoints + pointsEarned
+          loyaltyPoints: profile.loyaltyPoints + pointsEarned,
+          totalOrders: profile.totalOrders + 1
         });
       }
     }
