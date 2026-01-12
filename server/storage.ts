@@ -1,8 +1,8 @@
 import { 
   users, profiles, vendors, products, orders, orderItems, pushSubscriptions, rewards, redemptions, vendorCategories,
-  savedAddresses, notificationPreferences, vendorApplications, productCategories, vendorHours, promotions, platformMetrics,
+  savedAddresses, notificationPreferences, vendorApplications, productCategories, vendorHours, promotions, platformMetrics, inAppNotifications,
   type User, type Profile, type Vendor, type Product, type Order, type OrderItem, type PushSubscription, type Reward, type Redemption, type VendorCategory,
-  type SavedAddress, type NotificationPreferences, type VendorApplication, type ProductCategory, type VendorHours, type Promotion, type PlatformMetrics,
+  type SavedAddress, type NotificationPreferences, type VendorApplication, type ProductCategory, type VendorHours, type Promotion, type PlatformMetrics, type InAppNotification,
   type CreateVendorRequest, type CreateProductRequest, type CreateOrderRequest, type UpdateOrderStatusRequest, type CreatePushSubscriptionRequest
 } from "@shared/schema";
 import { db } from "./db";
@@ -87,6 +87,13 @@ export interface IStorage {
   // Analytics
   getVendorAnalytics(vendorId: number): Promise<{ totalOrders: number; totalRevenue: string; avgOrderValue: string; weeklyData: any[] }>;
   getPlatformAnalytics(): Promise<{ totalOrders: number; totalRevenue: string; totalVendors: number; totalUsers: number }>;
+
+  // In-App Notifications
+  getNotifications(userId: string): Promise<InAppNotification[]>;
+  createNotification(notification: { userId: string; title: string; message: string; type: string; data?: any }): Promise<InAppNotification>;
+  markNotificationRead(id: number, userId: string): Promise<InAppNotification | undefined>;
+  markAllNotificationsRead(userId: string): Promise<void>;
+  getUnreadNotificationCount(userId: string): Promise<number>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -444,6 +451,111 @@ export class DatabaseStorage implements IStorage {
       totalVendors: allVendors.length,
       totalUsers: allUsers.length
     };
+  }
+
+  async getHomeFeedData(userId?: string): Promise<{
+    popularProducts: any[];
+    featuredVendors: any[];
+    recentVendors: any[];
+    recommendations: any[];
+  }> {
+    const oneWeekAgo = new Date();
+    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+    
+    const recentOrders = await db.select().from(orders)
+      .where(gte(orders.createdAt, oneWeekAgo));
+    
+    const allOrderItems = await db.select().from(orderItems);
+    const allProducts = await db.select().from(products).where(eq(products.isAvailable, true));
+    const allVendors = await db.select().from(vendors);
+    
+    const recentOrderIds = new Set(recentOrders.map(o => o.id));
+    const recentItems = allOrderItems.filter(item => recentOrderIds.has(item.orderId));
+    
+    const productSales: Record<number, number> = {};
+    recentItems.forEach(item => {
+      productSales[item.productId] = (productSales[item.productId] || 0) + item.quantity;
+    });
+    
+    const popularProducts = allProducts
+      .map(p => ({ ...p, salesCount: productSales[p.id] || 0 }))
+      .filter(p => p.salesCount > 0)
+      .sort((a, b) => b.salesCount - a.salesCount)
+      .slice(0, 10);
+    
+    const featuredVendors = allVendors
+      .filter(v => v.isFeatured && v.isOpen)
+      .slice(0, 5);
+    
+    const recentVendorsData = allVendors
+      .slice(0, 5);
+    
+    let recommendations: any[] = [];
+    if (userId) {
+      const userOrders = await db.select().from(orders).where(eq(orders.customerId, userId));
+      const userVendorIds = new Set(userOrders.map(o => o.vendorId));
+      
+      const userOrderIds = new Set(userOrders.map(o => o.id));
+      const userItems = allOrderItems.filter(item => userOrderIds.has(item.orderId));
+      const userCategories = new Set<string>();
+      userItems.forEach(item => {
+        const product = allProducts.find(p => p.id === item.productId);
+        if (product?.category) userCategories.add(product.category);
+      });
+      
+      recommendations = allProducts
+        .filter(p => userCategories.has(p.category || '') && !userItems.some(ui => ui.productId === p.id))
+        .slice(0, 8);
+      
+      if (recommendations.length < 4) {
+        const otherProducts = allProducts
+          .filter(p => !recommendations.some(r => r.id === p.id))
+          .slice(0, 8 - recommendations.length);
+        recommendations = [...recommendations, ...otherProducts];
+      }
+    } else {
+      recommendations = allProducts.slice(0, 8);
+    }
+    
+    return {
+      popularProducts,
+      featuredVendors,
+      recentVendors: recentVendorsData,
+      recommendations
+    };
+  }
+
+  // In-App Notifications
+  async getNotifications(userId: string): Promise<InAppNotification[]> {
+    return await db.select().from(inAppNotifications)
+      .where(eq(inAppNotifications.userId, userId))
+      .orderBy(desc(inAppNotifications.createdAt));
+  }
+
+  async createNotification(notification: { userId: string; title: string; message: string; type: string; data?: any }): Promise<InAppNotification> {
+    const [newNotif] = await db.insert(inAppNotifications).values(notification as any).returning();
+    return newNotif;
+  }
+
+  async markNotificationRead(id: number, userId: string): Promise<InAppNotification | undefined> {
+    const [updated] = await db.update(inAppNotifications)
+      .set({ isRead: true })
+      .where(and(eq(inAppNotifications.id, id), eq(inAppNotifications.userId, userId)))
+      .returning();
+    return updated;
+  }
+
+  async markAllNotificationsRead(userId: string): Promise<void> {
+    await db.update(inAppNotifications)
+      .set({ isRead: true })
+      .where(eq(inAppNotifications.userId, userId));
+  }
+
+  async getUnreadNotificationCount(userId: string): Promise<number> {
+    const [result] = await db.select({ count: count() })
+      .from(inAppNotifications)
+      .where(and(eq(inAppNotifications.userId, userId), eq(inAppNotifications.isRead, false)));
+    return result?.count || 0;
   }
 }
 

@@ -95,6 +95,36 @@ export async function registerRoutes(
     res.json(rewards);
   });
 
+  app.get('/api/rewards/tier-info', async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Unauthorized" });
+    const user = req.user as any;
+    const profile = await storage.getProfile(user.claims.sub);
+    
+    const totalOrders = profile?.totalOrders || 0;
+    const currentTier = totalOrders >= 50 ? "gold" : 
+                       totalOrders >= 20 ? "silver" : 
+                       totalOrders >= 5 ? "bronze" : "member";
+    
+    const tierInfo = {
+      currentTier,
+      totalOrders,
+      loyaltyPoints: profile?.loyaltyPoints || 0,
+      earnRate: "1 point per $2 spent",
+      tierBonuses: {
+        member: { orders: 0, bonus: "No bonus", multiplier: 1 },
+        bronze: { orders: 5, bonus: "10% bonus points", multiplier: 1.1 },
+        silver: { orders: 20, bonus: "25% bonus points", multiplier: 1.25 },
+        gold: { orders: 50, bonus: "50% bonus points", multiplier: 1.5 }
+      },
+      nextTier: currentTier === "gold" ? null : 
+               currentTier === "silver" ? { name: "gold", ordersNeeded: 50 - totalOrders } :
+               currentTier === "bronze" ? { name: "silver", ordersNeeded: 20 - totalOrders } :
+               { name: "bronze", ordersNeeded: 5 - totalOrders }
+    };
+    
+    res.json(tierInfo);
+  });
+
   app.post(api.rewards.redeem.path, async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Unauthorized" });
     const user = req.user as any;
@@ -131,6 +161,13 @@ export async function registerRoutes(
     const user = req.user as any;
     const history = await storage.getUserRedemptions(user.claims.sub);
     res.json(history);
+  });
+
+  // -- Home Feed --
+  app.get('/api/home/feed', async (req, res) => {
+    const userId = req.isAuthenticated() ? (req.user as any).claims.sub : undefined;
+    const feedData = await storage.getHomeFeedData(userId);
+    res.json(feedData);
   });
 
   // -- Categories --
@@ -244,6 +281,19 @@ export async function registerRoutes(
       };
 
       const order = await storage.createOrder(orderData, itemsData);
+      
+      // Notify vendor about new order
+      const vendor = await storage.getVendor(input.vendorId);
+      if (vendor) {
+        await storage.createNotification({
+          userId: vendor.ownerId,
+          title: "New Order!",
+          message: `You have a new order #${order.id} worth $${total.toFixed(2)}`,
+          type: "order",
+          data: { orderId: order.id, total: total.toFixed(2) }
+        });
+      }
+      
       res.status(201).json(order);
     } catch (err) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
@@ -285,16 +335,47 @@ export async function registerRoutes(
 
     const updated = await storage.updateOrderStatus(orderId, req.body.status);
     
-    // Award loyalty points and increment order count when order is completed (1 point per $1 spent)
+    // Award loyalty points and increment order count when order is completed
+    // Profitable rewards: 1 point per $2 spent with tier bonuses
     if (req.body.status === "completed" && order.status !== "completed") {
-      const pointsEarned = Math.floor(Number(order.totalAmount));
+      const orderTotal = Number(order.totalAmount);
+      let basePoints = Math.floor(orderTotal / 2); // 1 point per $2 spent
+      
       const profile = await storage.getProfile(order.customerId);
       if (profile) {
+        // Tier bonuses based on total orders
+        const tierMultiplier = profile.totalOrders >= 50 ? 1.5 : // Gold tier: 50% bonus
+                              profile.totalOrders >= 20 ? 1.25 : // Silver tier: 25% bonus
+                              profile.totalOrders >= 5 ? 1.1 : // Bronze tier: 10% bonus
+                              1; // No bonus
+        
+        const pointsEarned = Math.floor(basePoints * tierMultiplier);
+        
         await storage.updateProfile(order.customerId, {
           loyaltyPoints: profile.loyaltyPoints + pointsEarned,
           totalOrders: profile.totalOrders + 1
         });
       }
+    }
+    
+    // Send notification to customer about order status change
+    const statusMessages: Record<string, { title: string; message: string }> = {
+      accepted: { title: "Order Accepted", message: `${vendor.name} has accepted your order #${orderId}` },
+      preparing: { title: "Order Being Prepared", message: `${vendor.name} is now preparing your order #${orderId}` },
+      ready: { title: "Order Ready!", message: `Your order #${orderId} from ${vendor.name} is ready for pickup` },
+      completed: { title: "Order Completed", message: `Your order #${orderId} from ${vendor.name} has been completed. You earned points!` },
+      cancelled: { title: "Order Cancelled", message: `Your order #${orderId} from ${vendor.name} has been cancelled` },
+    };
+    
+    const notifInfo = statusMessages[req.body.status];
+    if (notifInfo) {
+      await storage.createNotification({
+        userId: order.customerId,
+        title: notifInfo.title,
+        message: notifInfo.message,
+        type: "order",
+        data: { orderId, status: req.body.status }
+      });
     }
     
     res.json(updated);
@@ -318,6 +399,37 @@ export async function registerRoutes(
        if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
        res.status(500).json({ message: "Internal server error" });
     }
+  });
+
+  // In-App Notifications
+  app.get('/api/notifications', async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Unauthorized" });
+    const user = req.user as any;
+    const notifications = await storage.getNotifications(user.claims.sub);
+    res.json(notifications);
+  });
+
+  app.get('/api/notifications/unread-count', async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Unauthorized" });
+    const user = req.user as any;
+    const count = await storage.getUnreadNotificationCount(user.claims.sub);
+    res.json({ count });
+  });
+
+  app.patch('/api/notifications/:id/read', async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Unauthorized" });
+    const user = req.user as any;
+    const id = Number(req.params.id);
+    const notification = await storage.markNotificationRead(id, user.claims.sub);
+    if (!notification) return res.status(404).json({ message: "Notification not found" });
+    res.json(notification);
+  });
+
+  app.post('/api/notifications/mark-all-read', async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Unauthorized" });
+    const user = req.user as any;
+    await storage.markAllNotificationsRead(user.claims.sub);
+    res.json({ success: true });
   });
 
   // -- Wallet / Stripe --

@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
 import { Link } from "wouter";
 import { Star, MapPin, Clock } from "lucide-react";
-import type { Vendor } from "@shared/routes";
+import type { Vendor } from "@shared/schema";
 
 interface VendorCardProps {
   vendor: Vendor;
@@ -16,7 +16,6 @@ export function VendorCard({ vendor }: VendorCardProps) {
         className="bg-card rounded-2xl overflow-hidden border border-border/40 shadow-sm cursor-pointer group"
       >
         <div className="relative h-40 bg-muted overflow-hidden">
-          {/* Unsplash Food/Restaurant Image */}
           <img
             src={vendor.imageUrl || "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&q=80&w=800"}
             alt={vendor.name}
@@ -24,7 +23,7 @@ export function VendorCard({ vendor }: VendorCardProps) {
           />
           <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-lg flex items-center gap-1 shadow-sm">
             <Star className="w-3.5 h-3.5 text-primary fill-primary" />
-            <span className="text-xs font-bold text-foreground">4.8</span>
+            <span className="text-xs font-bold text-foreground">{vendor.rating || "4.5"}</span>
           </div>
           
           {!vendor.isOpen && (
@@ -51,7 +50,7 @@ export function VendorCard({ vendor }: VendorCardProps) {
             </div>
             <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
               <Clock className="w-3.5 h-3.5 text-primary" />
-              10-20 min
+              {vendor.deliveryTime || "15-25 min"}
             </div>
           </div>
         </div>

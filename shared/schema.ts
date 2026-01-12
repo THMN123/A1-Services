@@ -108,6 +108,17 @@ export const pushSubscriptions = pgTable("push_subscriptions", {
   auth: text("auth").notNull(),
 });
 
+export const inAppNotifications = pgTable("in_app_notifications", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  title: text("title").notNull(),
+  message: text("message").notNull(),
+  type: text("type", { enum: ["order", "promo", "reward", "system"] }).default("system").notNull(),
+  data: jsonb("data"),
+  isRead: boolean("is_read").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const savedAddresses = pgTable("saved_addresses", {
   id: serial("id").primaryKey(),
   userId: varchar("user_id").notNull().references(() => users.id),
@@ -248,6 +259,7 @@ export const insertProductSchema = createInsertSchema(products).omit({ id: true 
 export const insertOrderSchema = createInsertSchema(orders).omit({ id: true, createdAt: true });
 export const insertOrderItemSchema = createInsertSchema(orderItems).omit({ id: true });
 export const insertPushSubscriptionSchema = createInsertSchema(pushSubscriptions).omit({ id: true });
+export const insertInAppNotificationSchema = createInsertSchema(inAppNotifications).omit({ id: true, createdAt: true });
 export const insertSavedAddressSchema = createInsertSchema(savedAddresses).omit({ id: true });
 export const insertNotificationPreferencesSchema = createInsertSchema(notificationPreferences).omit({ id: true });
 export const insertVendorApplicationSchema = createInsertSchema(vendorApplications).omit({ id: true, submittedAt: true, reviewedAt: true, reviewedBy: true, status: true });
@@ -266,6 +278,7 @@ export type Product = typeof products.$inferSelect;
 export type Order = typeof orders.$inferSelect;
 export type OrderItem = typeof orderItems.$inferSelect;
 export type PushSubscription = typeof pushSubscriptions.$inferSelect;
+export type InAppNotification = typeof inAppNotifications.$inferSelect;
 export type SavedAddress = typeof savedAddresses.$inferSelect;
 export type NotificationPreferences = typeof notificationPreferences.$inferSelect;
 export type VendorApplication = typeof vendorApplications.$inferSelect;
