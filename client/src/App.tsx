@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/use-auth";
 import { Loader2 } from "lucide-react";
+import { useEffect } from "react";
 
 import Home from "@/pages/Home";
 import Login from "@/pages/Login";
@@ -91,6 +92,15 @@ function Router() {
 }
 
 function App() {
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
