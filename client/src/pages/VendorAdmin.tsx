@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useUpload } from "@/hooks/use-upload";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -9,6 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useForm } from "react-hook-form";
@@ -16,7 +19,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { 
   Store, Package, ShoppingBag, BarChart3, Settings, Plus, Pencil, Trash2, 
-  Clock, DollarSign, TrendingUp, ArrowLeft, Loader2, CheckCircle, XCircle
+  Clock, DollarSign, TrendingUp, ArrowLeft, Loader2, CheckCircle, XCircle,
+  Upload, Image, Camera, Bell, Volume2
 } from "lucide-react";
 import { useLocation } from "wouter";
 import type { Vendor, Product, Order } from "@shared/schema";
@@ -27,7 +31,18 @@ const productFormSchema = z.object({
   price: z.string().min(1, "Price is required"),
   prepTimeMinutes: z.string().optional(),
   isAvailable: z.boolean().default(true),
+  imageUrl: z.string().optional(),
 });
+
+const DAYS_OF_WEEK = [
+  { value: "0", label: "Sunday" },
+  { value: "1", label: "Monday" },
+  { value: "2", label: "Tuesday" },
+  { value: "3", label: "Wednesday" },
+  { value: "4", label: "Thursday" },
+  { value: "5", label: "Friday" },
+  { value: "6", label: "Saturday" },
+];
 
 const shopFormSchema = z.object({
   name: z.string().min(1, "Shop name is required"),
@@ -137,10 +152,17 @@ function ProductsTab({ products, onAdd, onEdit, onDelete }: {
         <div className="space-y-3">
           {products.map((product) => (
             <Card key={product.id} className="p-4" data-testid={`product-item-${product.id}`}>
-              <div className="flex items-center justify-between">
-                <div className="flex-1">
+              <div className="flex items-center gap-4">
+                <div className="w-16 h-16 rounded-lg bg-muted flex items-center justify-center overflow-hidden flex-shrink-0">
+                  {product.imageUrl ? (
+                    <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <Package className="w-6 h-6 text-muted-foreground" />
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <h4 className="font-medium">{product.name}</h4>
+                    <h4 className="font-medium truncate">{product.name}</h4>
                     <Badge variant={product.isAvailable ? "default" : "secondary"}>
                       {product.isAvailable ? "Available" : "Unavailable"}
                     </Badge>
@@ -154,7 +176,7 @@ function ProductsTab({ products, onAdd, onEdit, onDelete }: {
                     </span>
                   </div>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-shrink-0">
                   <Button variant="ghost" size="icon" onClick={() => onEdit(product)} data-testid={`button-edit-product-${product.id}`}>
                     <Pencil className="w-4 h-4" />
                   </Button>
@@ -254,6 +276,29 @@ function OrdersTab({ orders, onUpdateStatus }: {
 
 function ShopSettingsTab({ vendor, onUpdate }: { vendor: Vendor; onUpdate: (data: any) => void }) {
   const { toast } = useToast();
+  const [logoUrl, setLogoUrl] = useState(vendor.imageUrl || "");
+  const [bannerUrl, setBannerUrl] = useState(vendor.coverImageUrl || "");
+  const logoInputRef = useRef<HTMLInputElement>(null);
+  const bannerInputRef = useRef<HTMLInputElement>(null);
+  
+  const { uploadFile: uploadLogo, isUploading: isUploadingLogo } = useUpload({
+    onSuccess: (response) => {
+      setLogoUrl(response.objectPath);
+      onUpdate({ imageUrl: response.objectPath });
+      toast({ title: "Logo uploaded successfully" });
+    },
+    onError: () => toast({ title: "Failed to upload logo", variant: "destructive" })
+  });
+
+  const { uploadFile: uploadBanner, isUploading: isUploadingBanner } = useUpload({
+    onSuccess: (response) => {
+      setBannerUrl(response.objectPath);
+      onUpdate({ coverImageUrl: response.objectPath });
+      toast({ title: "Banner uploaded successfully" });
+    },
+    onError: () => toast({ title: "Failed to upload banner", variant: "destructive" })
+  });
+  
   const form = useForm({
     resolver: zodResolver(shopFormSchema),
     defaultValues: {
@@ -265,6 +310,7 @@ function ShopSettingsTab({ vendor, onUpdate }: { vendor: Vendor; onUpdate: (data
   });
 
   const [isOpen, setIsOpen] = useState(vendor.isOpen);
+  const [orderNotifications, setOrderNotifications] = useState(true);
 
   const toggleOpenMutation = useMutation({
     mutationFn: async (open: boolean) => {
@@ -281,6 +327,16 @@ function ShopSettingsTab({ vendor, onUpdate }: { vendor: Vendor; onUpdate: (data
     toggleOpenMutation.mutate(checked);
   };
 
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) uploadLogo(file);
+  };
+
+  const handleBannerUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) uploadBanner(file);
+  };
+
   return (
     <div className="space-y-6">
       <Card className="p-4">
@@ -293,6 +349,78 @@ function ShopSettingsTab({ vendor, onUpdate }: { vendor: Vendor; onUpdate: (data
             checked={isOpen} 
             onCheckedChange={handleToggleOpen}
             data-testid="switch-shop-open"
+          />
+        </div>
+      </Card>
+
+      <Card className="p-4">
+        <h3 className="font-semibold mb-4">Shop Images</h3>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <Label className="text-sm text-muted-foreground mb-2 block">Shop Logo</Label>
+            <div 
+              onClick={() => logoInputRef.current?.click()}
+              className="w-24 h-24 rounded-xl border-2 border-dashed border-border flex items-center justify-center cursor-pointer hover:bg-muted/50 transition-colors overflow-hidden"
+              data-testid="upload-logo"
+            >
+              {isUploadingLogo ? (
+                <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+              ) : logoUrl ? (
+                <img src={logoUrl} alt="Logo" className="w-full h-full object-cover" />
+              ) : (
+                <Camera className="w-6 h-6 text-muted-foreground" />
+              )}
+            </div>
+            <input 
+              ref={logoInputRef}
+              type="file" 
+              accept="image/*" 
+              className="hidden" 
+              onChange={handleLogoUpload}
+            />
+          </div>
+          <div>
+            <Label className="text-sm text-muted-foreground mb-2 block">Banner Image</Label>
+            <div 
+              onClick={() => bannerInputRef.current?.click()}
+              className="w-full h-24 rounded-xl border-2 border-dashed border-border flex items-center justify-center cursor-pointer hover:bg-muted/50 transition-colors overflow-hidden"
+              data-testid="upload-banner"
+            >
+              {isUploadingBanner ? (
+                <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+              ) : bannerUrl ? (
+                <img src={bannerUrl} alt="Banner" className="w-full h-full object-cover" />
+              ) : (
+                <div className="flex flex-col items-center">
+                  <Image className="w-6 h-6 text-muted-foreground" />
+                  <span className="text-xs text-muted-foreground mt-1">Upload Banner</span>
+                </div>
+              )}
+            </div>
+            <input 
+              ref={bannerInputRef}
+              type="file" 
+              accept="image/*" 
+              className="hidden" 
+              onChange={handleBannerUpload}
+            />
+          </div>
+        </div>
+      </Card>
+
+      <Card className="p-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Volume2 className="w-5 h-5 text-primary" />
+            <div>
+              <h3 className="font-semibold">Order Notifications</h3>
+              <p className="text-sm text-muted-foreground">Play sound for new orders</p>
+            </div>
+          </div>
+          <Switch 
+            checked={orderNotifications} 
+            onCheckedChange={setOrderNotifications}
+            data-testid="switch-order-notifications"
           />
         </div>
       </Card>
@@ -368,6 +496,16 @@ export default function VendorAdmin() {
   const { toast } = useToast();
   const [productDialogOpen, setProductDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [productImageUrl, setProductImageUrl] = useState<string>("");
+  const productImageRef = useRef<HTMLInputElement>(null);
+
+  const { uploadFile: uploadProductImage, isUploading: isUploadingProductImage } = useUpload({
+    onSuccess: (response) => {
+      setProductImageUrl(response.objectPath);
+      toast({ title: "Image uploaded" });
+    },
+    onError: () => toast({ title: "Failed to upload image", variant: "destructive" })
+  });
 
   const productForm = useForm({
     resolver: zodResolver(productFormSchema),
@@ -377,6 +515,7 @@ export default function VendorAdmin() {
       price: "",
       prepTimeMinutes: "10",
       isAvailable: true,
+      imageUrl: "",
     },
   });
 
@@ -466,26 +605,35 @@ export default function VendorAdmin() {
 
   const handleAddProduct = () => {
     setEditingProduct(null);
+    setProductImageUrl("");
     productForm.reset({
       name: "",
       description: "",
       price: "",
       prepTimeMinutes: "10",
       isAvailable: true,
+      imageUrl: "",
     });
     setProductDialogOpen(true);
   };
 
   const handleEditProduct = (product: Product) => {
     setEditingProduct(product);
+    setProductImageUrl(product.imageUrl || "");
     productForm.reset({
       name: product.name,
       description: product.description || "",
       price: product.price,
       prepTimeMinutes: String(product.prepTimeMinutes),
       isAvailable: product.isAvailable,
+      imageUrl: product.imageUrl || "",
     });
     setProductDialogOpen(true);
+  };
+
+  const handleProductImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) uploadProductImage(file);
   };
 
   const handleProductSubmit = (data: any) => {
@@ -495,6 +643,7 @@ export default function VendorAdmin() {
       price: data.price,
       prepTimeMinutes: parseInt(data.prepTimeMinutes) || 10,
       isAvailable: data.isAvailable,
+      imageUrl: productImageUrl || null,
     };
 
     if (editingProduct) {
@@ -643,6 +792,34 @@ export default function VendorAdmin() {
                   </FormItem>
                 )}
               />
+              
+              <div>
+                <Label className="text-sm font-medium mb-2 block">Product Image</Label>
+                <div 
+                  onClick={() => productImageRef.current?.click()}
+                  className="w-full h-32 rounded-xl border-2 border-dashed border-border flex items-center justify-center cursor-pointer hover:bg-muted/50 transition-colors overflow-hidden"
+                  data-testid="upload-product-image"
+                >
+                  {isUploadingProductImage ? (
+                    <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                  ) : productImageUrl ? (
+                    <img src={productImageUrl} alt="Product" className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="flex flex-col items-center">
+                      <Upload className="w-6 h-6 text-muted-foreground" />
+                      <span className="text-xs text-muted-foreground mt-1">Upload Image</span>
+                    </div>
+                  )}
+                </div>
+                <input 
+                  ref={productImageRef}
+                  type="file" 
+                  accept="image/*" 
+                  className="hidden" 
+                  onChange={handleProductImageUpload}
+                />
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <FormField
                   control={productForm.control}
